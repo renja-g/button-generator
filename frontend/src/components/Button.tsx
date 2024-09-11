@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ButtonData } from '../types';
 
 interface ButtonProps extends ButtonData {
-  onUpdate: (id: number, newName: string) => void;
+  onUpdate: (id: number, newName: string) => Promise<void>;
   onDelete: (id: number) => void;
 }
 
@@ -11,8 +11,10 @@ const Button: React.FC<ButtonProps> = ({ id, name, width, height, onUpdate, onDe
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(name);
+  const [error, setError] = useState<string | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -27,6 +29,12 @@ const Button: React.FC<ButtonProps> = ({ id, name, width, height, onUpdate, onDe
     };
   }, []);
 
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing]);
+
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     setShowMenu(true);
@@ -36,6 +44,7 @@ const Button: React.FC<ButtonProps> = ({ id, name, width, height, onUpdate, onDe
   const handleEdit = () => {
     setIsEditing(true);
     setShowMenu(false);
+    setError(null);
   };
 
   const handleDelete = () => {
@@ -43,9 +52,20 @@ const Button: React.FC<ButtonProps> = ({ id, name, width, height, onUpdate, onDe
     setShowMenu(false);
   };
 
-  const handleSave = () => {
-    onUpdate(id, editedName);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      await onUpdate(id, editedName);
+      setIsEditing(false);
+      setError(null);
+    } catch (error) {
+      setError('Failed to update button. Please try again.');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    }
   };
 
   return (
@@ -58,28 +78,25 @@ const Button: React.FC<ButtonProps> = ({ id, name, width, height, onUpdate, onDe
       >
         {isEditing ? (
           <input
+            ref={inputRef}
             type="text"
             value={editedName}
             onChange={(e) => setEditedName(e.target.value)}
             onBlur={handleSave}
-            autoFocus
+            onKeyDown={handleKeyDown}
           />
         ) : (
           name
         )}
       </button>
+      {error && <div className="error-message">{error}</div>}
       {showMenu && (
         <div
           ref={menuRef}
+          className="context-menu"
           style={{
-            position: 'fixed',
             top: menuPosition.y,
             left: menuPosition.x,
-            backgroundColor: 'white',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            padding: '5px',
-            zIndex: 1000,
           }}
         >
           <button onClick={handleEdit}>Edit</button>
