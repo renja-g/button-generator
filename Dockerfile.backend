@@ -1,25 +1,29 @@
-FROM python:3.12.6-slim-bullseye AS builder
+FROM node:20.17.0 AS builder
 
 WORKDIR /app
 
-COPY backend/requirements.txt .
-
-# Install build dependencies, then install Python packages
-RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev \
-    && pip install --user --no-cache-dir -r requirements.txt \
-    && apt-get clean \
+RUN apt-get update && apt-get install -y \
+    make \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
-FROM python:3.12.6-slim-bullseye
+COPY backend/package*.json ./
 
-WORKDIR /app
-
-COPY --from=builder /root/.local /root/.local
-
-ENV PATH=/root/.local/bin:$PATH
+RUN npm install
 
 COPY backend/ .
 
-EXPOSE 8000
+# Rebuild SQLite3 and other native modules
+RUN npm rebuild
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+RUN npm run build
+
+FROM node:20.17.0-slim
+
+WORKDIR /app
+
+COPY --from=builder /app .
+
+EXPOSE 3001
+
+CMD ["node", "dist/index.js"]
